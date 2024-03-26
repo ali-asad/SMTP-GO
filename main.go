@@ -14,6 +14,8 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/smtp"
+	"strings"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -260,48 +262,74 @@ func signEmail(message string, privateKey *rsa.PrivateKey) ([]byte, error) {
 
 // Function to send an email
 func sendEmail(fromEmail, toEmail, subject, message string) error {
-
-	// tlsConfig := &tls.Config{}
-
-	host := "crms-email-test.io.mslm.io"
-	port := "587"
-
-	conn, err := net.Dial("tcp", fmt.Sprintf("%s:%s", host, port))
-	if err != nil {
-		return fmt.Errorf("failed to connect to SMTP server: %w", err)
-	}
-	defer conn.Close()
-
-	// Authentication (if applicable)
-	// auth := smtp.PlainAuth("", fromEmail, "your_email_password", host) // Use if authentication is required
-	// if err := auth.Start(conn); err != nil {
-	//   return fmt.Errorf("failed to authenticate with SMTP server: %w", err)
-	// }
-
-	// Build email message
+	// Construct email message (headers and body)
 	msg := "From: " + fromEmail + "\r\n"
 	msg += "To: " + toEmail + "\r\n"
 	msg += "Subject: " + subject + "\r\n"
-	msg += "\r\n" // Important: Empty line after headers
+	msg += "\r\n" // Separate headers from body
 	msg += message + "\r\n"
 
-	// Send email
-	w, err := conn.Write([]byte(msg))
+	// Extract target server details from email (replace with actual logic)
+	targetServer := extractTargetServer(toEmail) // Replace with actual logic
+
+	// Connect to target SMTP server
+	conn, err := net.Dial("tcp", targetServer+":25")
 	if err != nil {
-		return fmt.Errorf("failed to send email: %w", err)
+		return fmt.Errorf("failed to connect to target server: %w", err)
 	}
-	fmt.Printf("Email sent to %s (written %d bytes)\n", toEmail, w)
+	defer conn.Close() // Ensure connection is closed even in case of errors
 
-	if err := conn.Close(); err != nil {
-		return fmt.Errorf("failed to quit SMTP connection: %w", err)
+	// Create SMTP client with potential error handling
+	client, err := smtp.NewClient(conn, targetServer) // No authentication for POC
+	if err != nil {
+		return fmt.Errorf("failed to create SMTP client: %w", err)
+	}
+	defer client.Quit() // Close the connection when done with client
+
+	// Send HELO command
+	if err := client.Hello("crms-email-test.io.mslm.io"); err != nil { // Replace with your hostname if needed
+		return fmt.Errorf("failed to send HELO command: %w", err)
 	}
 
+	// Send MAIL FROM command
+	if err := client.Mail(fromEmail); err != nil {
+		return fmt.Errorf("failed to send MAIL FROM command: %w", err)
+	}
+
+	// Send RCPT TO command for each recipient
+	for _, recipient := range strings.Split(toEmail, ",") {
+		if err := client.Rcpt(recipient); err != nil {
+			return fmt.Errorf("failed to send RCPT TO command for %s: %w", recipient, err)
+		}
+	}
+
+	// Send DATA command and email content
+	w, err := client.Data()
+	if err != nil {
+		return fmt.Errorf("failed to send DATA command: %w", err)
+	}
+	_, err = w.Write([]byte(msg))
+	if err != nil {
+		return fmt.Errorf("failed to write email content: %w", err)
+	}
+	if err := w.Close(); err != nil {
+		return fmt.Errorf("failed to close DATA writer: %w", err)
+	}
+
+	fmt.Println("Email sent successfully")
 	return nil
+}
+
+// Placeholder function to extract target server from email (replace with your logic)
+func extractTargetServer(toEmail string) string {
+	// This is a simplified approach, a more robust solution might involve parsing actual email headers
+	domain := strings.SplitN(toEmail, "@", 2)[1]
+	return fmt.Sprintf("smtp.%s", domain) // Replace with actual logic to extract server from headers
 }
 
 func main() {
 	// Send email with predefined parameters
-	err := sendEmail("asad.ali@mslm.io", "asad.ali@mslm.io", "Test Subject", "Test Body: This is a test email to create POC for smtp server to send emails")
+	err := sendEmail("asad.mslm@outlook.com", "asad.ali@mslm.io", "Test Subject", "Test Body: This is a test email to create POC for smtp server to send")
 	if err != nil {
 		log.Fatal("Error sending email:", err)
 	}
