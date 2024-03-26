@@ -7,7 +7,7 @@ import (
 	"net"
 )
 
-func client() {
+func main() {
 	serverAddr := "localhost:25"
 
 	conn, err := net.Dial("tcp", serverAddr)
@@ -43,7 +43,7 @@ func client() {
 	}
 
 	// Send MAIL FROM command
-	writer.WriteString("MAIL FROM: <sender@example.com>\r\n")
+	writer.WriteString("MAIL FROM: test@testemail.crmspoc.mslm.email\r\n")
 	writer.Flush()
 
 	// Read response to MAIL FROM
@@ -54,7 +54,7 @@ func client() {
 	fmt.Println("MAIL FROM response:", response)
 
 	// Send RCPT TO command
-	writer.WriteString("RCPT TO: <recipient@example.com>\r\n")
+	writer.WriteString("RCPT TO: asadalirana62@gmail.com\r\n")
 	writer.Flush()
 
 	// Read response to RCPT TO

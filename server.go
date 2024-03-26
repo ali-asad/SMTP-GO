@@ -65,7 +65,7 @@ func handleClient(conn net.Conn) {
 	}
 }
 
-func server() {
+func main() {
 	listener, err := net.Listen("tcp", ":25")
 	if err != nil {
 		log.Fatal("Error starting SMTP server:", err)
