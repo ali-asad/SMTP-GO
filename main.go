@@ -14,7 +14,6 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"net/smtp"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -32,7 +31,6 @@ type SendEmailRequest struct {
 	From    string `json:"from"`
 	Subject string `json:"subject"`
 	Body    string `json:"body"`
-	// DkimKey string `json:"dkimKey"`
 }
 
 const (
@@ -262,71 +260,51 @@ func signEmail(message string, privateKey *rsa.PrivateKey) ([]byte, error) {
 
 // Function to send an email
 func sendEmail(fromEmail, toEmail, subject, message string) error {
-	// SMTP server details (Gmail's public SMTP server)
-	host := "ASPMX.L.GOOGLE.COM"
-	port := "25" // or 587 for TLS
 
-	// Generate a unique Message-ID
-	messageID := fmt.Sprintf("<%s@%s>", generateUniqueID(), "your-domain.com") // Replace with your domain
+	// tlsConfig := &tls.Config{}
 
-	// Build the email message
-	msg := "From: " + fromEmail + "\r\n"
-	msg += "To: " + toEmail + "\r\n"
-	msg += "Subject: " + subject + "\r\n"
-	msg += "Content-Type: text/plain; charset=utf-8\r\n"
-	msg += "Message-ID: " + messageID + "\r\n"
-	msg += "\r\n" // Separate headers from body
-	msg += message + "\r\n"
+	host := "crms-email-test.io.mslm.io"
+	port := "587"
 
-	// **Place to update:** Decide if you want to use TLS (recommended)
-	// useTLS := true // Set to true to enable TLS
-
-	// Connect to SMTP server
-	var conn *smtp.Client
-	var err error
-	// if useTLS {
-	// 	// Connect with TLS (if using TLS)
-	// 	tlsConfig := &tls.Config{}
-	// 	conn, err = smtp.DialTLS(fmt.Sprintf("%s:%s", host, port), nil, tlsConfig)
-	// } else {
-	// Connect without TLS (not recommended)
-	conn, err = smtp.Dial(fmt.Sprintf("%s:%s", host, port))
-	// }
+	conn, err := net.Dial("tcp", fmt.Sprintf("%s:%s", host, port))
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to connect to SMTP server: %w", err)
 	}
 	defer conn.Close()
 
-	// Send the email
-	// if err := conn.StartTLS(tlsConfig); err != nil && useTLS { // Use tlsConfig only if using TLS
-	// 	return err
+	// Authentication (if applicable)
+	// auth := smtp.PlainAuth("", fromEmail, "your_email_password", host) // Use if authentication is required
+	// if err := auth.Start(conn); err != nil {
+	//   return fmt.Errorf("failed to authenticate with SMTP server: %w", err)
 	// }
-	if err := conn.Mail(fromEmail); err != nil {
-		return err
-	}
-	if err := conn.Rcpt(toEmail); err != nil {
-		return err
-	}
-	w, err := conn.Data()
-	if err != nil {
-		return err
-	}
-	defer w.Close()
 
-	_, err = w.Write([]byte(msg))
-	if err != nil {
-		return err
-	}
+	// Build email message
+	msg := "From: " + fromEmail + "\r\n"
+	msg += "To: " + toEmail + "\r\n"
+	msg += "Subject: " + subject + "\r\n"
+	msg += "\r\n" // Important: Empty line after headers
+	msg += message + "\r\n"
 
-	err = w.Close()
+	// Send email
+	w, err := conn.Write([]byte(msg))
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to send email: %w", err)
+	}
+	fmt.Printf("Email sent to %s (written %d bytes)\n", toEmail, w)
+
+	if err := conn.Close(); err != nil {
+		return fmt.Errorf("failed to quit SMTP connection: %w", err)
 	}
 
-	return conn.Quit()
+	return nil
 }
 
 func main() {
+	// Send email with predefined parameters
+	err := sendEmail("asad.ali@mslm.io", "asad.ali@mslm.io", "Test Subject", "Test Body: This is a test email to create POC for smtp server to send emails")
+	if err != nil {
+		log.Fatal("Error sending email:", err)
+	}
 
 	// Start HTTP server
 	r := mux.NewRouter()
