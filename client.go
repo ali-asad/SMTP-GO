@@ -1,100 +1,57 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
-	"log"
-	"net"
+	"net/smtp"
 )
 
 func main() {
-	serverAddr := "localhost:25"
+	// Define SMTP server configuration
+	smtpServer := "localhost"
+	smtpPort := 25
+	from := "test@testemail.crmspoc.mslm.email"
+	to := "asad.mslm@outlook.com"
+	subject := "Test Email"
+	body := "This is a test email from my SMTP server."
 
-	conn, err := net.Dial("tcp", serverAddr)
+	// Compose the email message
+	message := fmt.Sprintf("To: %s\r\n", to) +
+		fmt.Sprintf("From: %s\r\n", from) +
+		fmt.Sprintf("Subject: %s\r\n", subject) +
+		"\r\n" +
+		body
+
+	// Connect to the SMTP server
+	client, err := smtp.Dial(fmt.Sprintf("%s:%d", smtpServer, smtpPort))
 	if err != nil {
-		log.Fatal("Error connecting to SMTP server:", err)
+		fmt.Println("Error connecting to SMTP server:", err)
+		return
 	}
-	defer conn.Close()
+	defer client.Close()
 
-	reader := bufio.NewReader(conn)
-	writer := bufio.NewWriter(conn)
-
-	// Read the server's greeting
-	greeting, err := reader.ReadString('\n')
+	// Send the email
+	if err := client.Mail(from); err != nil {
+		fmt.Println("Error setting sender:", err)
+		return
+	}
+	if err := client.Rcpt(to); err != nil {
+		fmt.Println("Error setting recipient:", err)
+		return
+	}
+	writer, err := client.Data()
 	if err != nil {
-		log.Fatal("Error reading server greeting:", err)
+		fmt.Println("Error opening data connection:", err)
+		return
 	}
-	fmt.Println("Server greeting:", greeting)
-
-	// Send EHLO command
-	writer.WriteString("EHLO example.com\r\n")
-	writer.Flush()
-
-	// Read response to EHLO
-	for {
-		response, err := reader.ReadString('\n')
-		if err != nil {
-			log.Fatal("Error reading EHLO response:", err)
-		}
-		fmt.Println("EHLO response:", response)
-		if response[:3] == "250" {
-			break
-		}
-	}
-
-	// Send MAIL FROM command
-	writer.WriteString("MAIL FROM: test@testemail.crmspoc.mslm.email\r\n")
-	writer.Flush()
-
-	// Read response to MAIL FROM
-	response, err := reader.ReadString('\n')
+	_, err = writer.Write([]byte(message))
 	if err != nil {
-		log.Fatal("Error reading MAIL FROM response:", err)
+		fmt.Println("Error writing message body:", err)
+		return
 	}
-	fmt.Println("MAIL FROM response:", response)
-
-	// Send RCPT TO command
-	writer.WriteString("RCPT TO: asadalirana62@gmail.com\r\n")
-	writer.Flush()
-
-	// Read response to RCPT TO
-	response, err = reader.ReadString('\n')
+	err = writer.Close()
 	if err != nil {
-		log.Fatal("Error reading RCPT TO response:", err)
+		fmt.Println("Error closing data connection:", err)
+		return
 	}
-	fmt.Println("RCPT TO response:", response)
-
-	// Send DATA command
-	writer.WriteString("DATA\r\n")
-	writer.Flush()
-
-	// Read response to DATA
-	response, err = reader.ReadString('\n')
-	if err != nil {
-		log.Fatal("Error reading DATA response:", err)
-	}
-	fmt.Println("DATA response:", response)
-
-	// Send email body
-	emailBody := "Subject: Test email\r\n\r\nThis is a test email sent from the SMTP client."
-	writer.WriteString(emailBody + "\r\n.\r\n")
-	writer.Flush()
-
-	// Read response to email body
-	response, err = reader.ReadString('\n')
-	if err != nil {
-		log.Fatal("Error reading email body response:", err)
-	}
-	fmt.Println("Email body response:", response)
-
-	// Send QUIT command
-	writer.WriteString("QUIT\r\n")
-	writer.Flush()
-
-	// Read response to QUIT
-	response, err = reader.ReadString('\n')
-	if err != nil {
-		log.Fatal("Error reading QUIT response:", err)
-	}
-	fmt.Println("QUIT response:", response)
+	fmt.Println("Email sent successfully")
 }
